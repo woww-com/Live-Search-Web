@@ -1,0 +1,109 @@
+const _liveSearch = {
+  filterLabel: 'Series',
+  sizeImage: 's40',
+  noImage: '',
+  site: 'https://contoh.com'
+};
+(function (jQ) {
+  if (typeof jQ != 'function' || typeof _liveSearch != 'object') {
+    return false;
+  };
+  const newLayer2 = () => {
+      let element = jQ(`${_liveSearch.isHeader || '.cari-isi'}`),
+        item = jQ('.live-search-item'),
+        b = element[0].getBoundingClientRect();
+      item.css({
+        'left': b.left + 'px',
+        'top': b.bottom + 'px',
+        'width': b.width + 'px'
+      })
+    },
+    doClick = (e) => {
+      jQ(e.target).closest('.live-search-item').length || listItemRemove();
+    },
+    listItem = (e) => {
+      jQ('.live-search-item').length != 0 && (listItemRemove());
+      let newElement = jQ('<div class="live-search-item"></div>');
+      newElement.html(e);
+      jQ('body').append(newElement);
+      newLayer2();
+      jQ(window).on('resize', newLayer2);
+      jQ(window).on('scroll', newLayer2);
+      jQ(document).on('click', doClick);
+      return true;
+    },
+    listItemRemove = () => {
+      jQ('.live-search-item').length != 0 && jQ('.live-search-item').remove(), jQ(window).off('resize', newLayer2), jQ(window).off('scroll', newLayer2), jQ(document).off('click', doClick);
+    },
+    resizeImage = (e) => {
+      if (_liveSearch.sizeImage)
+        return e.match(/\/s[0-9]{2}-(w[0-9]+-)?c/) ? e.replace(/\/s[0-9]{2}-(w[0-9]+-)?c/, `/${_liveSearch.sizeImage}`) : e.replace(/\=s[0-9]{2}-(w[0-9]+-)?c/, `=${_liveSearch.sizeImage}`);
+      else
+        return e;
+    },
+    getImage = (e) => {
+      if ('media$thumbnail' in e) {
+        return resizeImage(e.media$thumbnail.url);
+      } else {
+        if ('content' in e) {
+          let s = e.content.$t,
+            a = s.indexOf("<img"),
+            b = s.indexOf("src=\"", a),
+            c = s.indexOf("\"", b + 5),
+            d = s.substr(b + 5, c - b - 5);
+          if ((a != -1) && (b != -1) && (c != -1) && (d != "")) {
+            return d;
+          } else {
+            return _liveSearch.noImage || '';
+          }
+        } else {
+          return _liveSearch.noImage || '';
+        }
+      }
+    };
+  let input = jQ('.cari-input');
+  if (input.length != 0) {
+    let timeout;
+    input.on('keyup', function () {
+      if (jQ(this).val().length != 0 && jQ(this).val().length >= 4) {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => {
+          if (jQ(this).val().length <= 4) {
+            return false
+          }
+          let value = jQ(this).val();
+          listItem('<center class="pinzx"><i class="fa fa-sync fa-spin"></i></center>');
+          jQ.ajax({
+            type: 'get',
+            url: `${_liveSearch.site || ''}/feeds/posts/default`,
+            data: {
+              'alt': 'json',
+              'q': `${_liveSearch.filterLabel ? `label:${_liveSearch.filterLabel} ` : ''}"${value}"`,
+              'max-results': 25
+            },
+            dataType: "jsonp",
+            success: (e) => {
+              if ('entry' in e.feed) {
+                let html = '';
+                $.each(e.feed.entry, function (i, post) {
+                  let title = post.title.$t,
+                    image = getImage(post),
+                    link = post.link.find(i => 'alternate' == i.rel).href,
+                    label = post.category.map(i => i.term).join(', ');
+                  html += `<li><a href="${link}"><div class="live-search-thumb"><img src="${image}"></div><div class="over"><div class="autotitle">${title}</div><span class="live-meta">${label}</span></div></a></li>`;
+                });
+                listItem(`<ul>${html}</ul>`);
+              } else {
+                listItem(`<p><center>"${value}" Tidak di temukan</center></p>`);
+              }
+            },
+            error: (e) => listItem('<p><center>Error</center></p>')
+          })
+        }, 500);
+      } else if (jQ(this).val().length == 0) {
+        clearTimeout(timeout);
+        listItemRemove();
+      }
+    })
+  }
+})(jQuery);
